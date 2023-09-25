@@ -1,0 +1,14 @@
+﻿cutechess-cli.exe ^
+-engine name="MyBot" cmd="Chess-Challenge.exe" arg="cutechess uci MyBot" ^
+-engine name="EvilBot" cmd="Chess-Challenge.exe" arg="cutechess uci EvilBot" ^
+-each tc=0/5+0.05 proto=uci ^
+-maxmoves 250 ^
+-games 2 ^
+-repeat ^
+-resultformat wide2 ^
+-ratinginterval 10 ^
+-rounds 100 ^
+-concurrency 6 ^
+-tournament gauntlet ^
+-pgnout C:\Users\Michael\Desktop\Chess\out.pgn ^
+-openings file="C:\Users\Michael\Desktop\Chess\openingBook.pgn" format=pgn

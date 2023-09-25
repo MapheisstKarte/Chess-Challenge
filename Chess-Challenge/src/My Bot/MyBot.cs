@@ -1,27 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Channels;
 using ChessChallenge.API;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.VisualBasic;
-using Board = ChessChallenge.API.Board;
-using Move = ChessChallenge.API.Move;
 
 public class MyBot : IChessBot
 {
-    
-    private int[,] _mvvLva =
-    {
-        { 0, 0, 0, 0, 0, 0, 0 }, // victim K, attacker K, Q, R, B, N, P, None
-        { 50, 51, 52, 53, 54, 55, 0 }, // victim Q, attacker K, Q, R, B, N, P, None
-        { 40, 41, 42, 43, 44, 45, 0 }, // victim R, attacker K, Q, R, B, N, P, None
-        { 30, 31, 32, 33, 34, 35, 0 }, // victim B, attacker K, Q, R, B, N, P, None
-        { 20, 21, 22, 23, 24, 25, 0 }, // victim N, attacker K, Q, R, B, N, P, None
-        { 10, 11, 12, 13, 14, 15, 0 }, // victim P, attacker K, Q, R, B, N, P, None
-        { 0, 0, 0, 0, 0, 0, 0 }, // victim None, attacker K, Q, R, B, N, P, None
-    };
-
     private struct Transposition
     {
         public ulong Hash;
@@ -32,11 +14,27 @@ public class MyBot : IChessBot
     }
 
     private readonly Transposition[] _transpositionTable = new Transposition[0x800000];
-    private readonly Move[] _killers = new Move[2048];
+    private Move[] _killerHeuristic;
     private int[] _historyHeuristic;
     
-    private static ulong[] _compresto = { 2531906049332683555, 1748981496244382085, 1097852895337720349, 879379754340921365, 733287618436800776, 1676506906360749833, 957361353080644096, 2531906049332683555, 1400370699429487872, 7891921272903718197, 12306085787436563023, 10705271422119415669, 8544333011004326513, 7968995920879187303, 7741846628066281825, 7452158230270339349, 5357357457767159349, 2550318802336244280, 5798248685363885890, 5789790151167530830, 6222952639246589772, 6657566409878495570, 6013263560801673558, 4407693923506736945, 8243364706457710951, 8314078770487191394, 6306293301333023298, 3692787177354050607, 3480508800547106083, 2756844305966902810, 18386335130924827, 3252248017965169204, 6871752429727068694, 7516062622759586586, 7737582523311005989, 3688521973121554199, 3401675877915367465, 3981239439281566756, 3688238338080057871, 5375663681380401, 5639385282757351424, 2601740525735067742, 3123043126030326072, 2104069582342139184, 1017836687573008400, 2752300895699678003, 5281087483624900674, 5717642197576017202, 578721382704613384, 14100080608108000698, 6654698745744944230, 1808489945494790184, 507499387321389333, 1973657882726156, 74881230395412501, 578721382704613384, 10212557253393705, 3407899295075687242, 4201957831109070667, 5866904407588300370, 5865785079031356753, 5570777287267344460, 3984647049929379641, 2535897457754910790, 219007409309353485, 943238143453304595, 2241421631242834717, 2098155335031661592, 1303832920857255445, 870353785759930383, 3397624511334669, 726780562173596164, 1809356472696839713, 1665231324524388639, 1229220018493528859, 1590638277979871000, 651911504053672215, 291616928119591952, 1227524515678129678, 6763160767239691, 4554615069702439202, 3119099418927382298, 3764532488529260823, 5720789117110010158, 4778967136330467097, 3473748882448060443, 794625965904696341, 150601370378243850, 4129336036406339328, 6152322103641660222, 6302355975661771604, 5576700317533364290, 4563097935526446648, 4706642459836630839, 4126790774883761967, 2247925333337909269, 17213489408, 6352120424995714304, 982348882 };
-    private byte[] _pesto = _compresto.SelectMany(BitConverter.GetBytes).ToArray();
+    private static readonly int[] PieceValues = {
+            /* Middlegame */ 77,302, 310, 434, 890, 0,
+            /* Endgame */ 109, 331, 335, 594, 1116, 0, },
+            MoveScores = new int[218], UnpackedPestoTables = new[] {
+            59445390105436474986072674560m, 70290677894333901267150682880m, 71539517137735599738519086336m, 78957476706409475571971323392m, 76477941479143404670656189696m, 78020492916263816717520067072m, 77059410983631195892660944640m, 61307098105356489251813834752m,
+            77373759864583735626648317994m, 3437103645554060776222818613m, 5013542988189698109836108074m, 2865258213628105516468149820m, 5661498819074815745865228343m, 8414185094009835055136457260m, 7780689186187929908113377023m, 2486769613674807657298071274m,
+            934589548775805732457284597m, 4354645360213341838043912961m, 8408178448912173986754536726m, 9647317858599793704577609753m, 9972476475626052485400971547m, 9023455558428990305557695533m, 9302688995903440861301845277m, 4030554014361651745759368192m,
+            78006037809249804099646260205m, 5608292212701744542498884606m, 9021118043939758059554412800m, 11825811962956083217393723906m, 11837863313235587677091076880m, 11207998775238414808093699594m, 9337766883211775102593666830m, 4676129865778184699670239740m,
+            75532551896838498151443462373m, 3131203134016898079077499641m, 8090231125077317934436125943m, 11205623443703685966919568899m, 11509049675918088175762150403m, 9025911301112313205746176509m, 6534267870125294841726636036m, 3120251651824756925472439792m,
+            74280085839011331528989207781m, 324048954150360030097570806m, 4681017700776466875968718582m, 7150867317927305549636569078m, 7155688890998399537110584833m, 5600986637454890754120354040m, 1563108101768245091211217423m, 78303310575846526174794479097m,
+            70256775951642154667751105509m, 76139418398446961904222530552m, 78919952506429230065925355250m, 2485617727604605227028709358m, 3105768375617668305352130555m, 1225874429600076432248013062m, 76410151742261424234463229975m, 72367527118297610444645922550m,
+            64062225663112462441888793856m, 67159522168020586196575185664m, 71185268483909686702087266048m, 75814236297773358797609495296m, 69944882517184684696171572480m, 74895414840161820695659345152m, 69305332238573146615004392448m, 63422661310571918454614119936m,
+        }.SelectMany(packedTable =>
+        decimal.GetBits(packedTable).SelectMany(BitConverter.GetBytes)
+                    // No point in only taking 12 bytes. Since we never access the last 4 anyway, we can just leave them as garbage
+                    .Select((square, index) => (int)((sbyte)square * 1.461) + PieceValues[index % 12])
+                .ToArray()
+        ).ToArray();
     
     private Board _board;
     private Timer _timer;
@@ -55,47 +53,40 @@ public class MyBot : IChessBot
     {
         _board = board;
         _timer = timer;
+        
         _timeLimit = timer.MillisecondsRemaining / 30;
         _bestMove = Move.NullMove;
+        
         _historyHeuristic = new int[4096];
+        _killerHeuristic = new Move[2048];
         
         //search 
-        IterativeDeepening();
-        
-        return _bestMove;
-    }
-
-    private void IterativeDeepening()
-    {
         ref var entry = ref _transpositionTable[_board.ZobristKey & 0x7FFFFF];
         var depth = 1;
-        
         while (_timer.MillisecondsElapsedThisTurn < _timeLimit)
         {
 #if DEBUG
             _nodesSearched = 0;
 #endif
-            
             Search(depth, 0, -KillerEvaluation, KillerEvaluation);
             _bestMove = entry.Move;
-            
-            
 #if DEBUG
             //log
             Console.WriteLine("depth: {0}, time: {1}, nodes: {2}, {3}, eval: {4}", entry.Depth, _timer.MillisecondsElapsedThisTurn, _nodesSearched, entry.Move, entry.Score);
 #endif
             depth++;
         }
+        
+        return _bestMove;
     }
     
-
     private int Search(int depth, int ply, int alpha, int beta)
     {
         
         //transposition table cutoff
         ref var entry = ref _transpositionTable[_board.ZobristKey & 0x7FFFFF];
 
-        if (entry.Depth >= depth && entry.Hash == _board.ZobristKey)
+        if (entry.Depth >= depth && entry.Hash == _board.ZobristKey && entry.Score < 800_000_000)
         {
             if (entry.Flag == 1) return entry.Score;
             //If we have a lower bound better than beta, use that
@@ -104,25 +95,29 @@ public class MyBot : IChessBot
             if (entry.Flag == 3 && entry.Score <= alpha) return entry.Score;
         }
         
-        var isQSearch = depth <= 0;
+        var isInCheck = _board.IsInCheck();
+        
+        //check extension
+        if (isInCheck)
+            depth++;
+        
+        var inQSearch = depth <= 0;
 
-        if (isQSearch)
+        if (inQSearch)
         {
             var eval = Evaluate();
             if (eval >= beta) return beta;
             if (alpha < eval) alpha = eval;
         }
-
         
         var bestScore = -KillerEvaluation;;
-        var isInCheck = _board.IsInCheck();
 
-        if (!isQSearch)
+        if (!inQSearch)
         {
-            
-            //check extension
-            if (isInCheck)
-                depth++;
+            //reverse futility pruning
+            var eval = Evaluate() - 100;
+            if (!isInCheck && eval >= beta)
+                return eval;
             
             //null move pruning
             if (depth >= 3 && !isInCheck)
@@ -134,17 +129,12 @@ public class MyBot : IChessBot
                 if (score >= beta) return score;
             }
             
-            //reverse futility pruning
-            if (!isInCheck && depth <= 8 && Evaluate() >= beta + 120 * depth)
-                return beta;
         }
-            
-        
 
-        var legalMoves = _board.GetLegalMoves(isQSearch);
+        var legalMoves = _board.GetLegalMoves(inQSearch);
         
         if (!legalMoves.Any())
-            return isQSearch ? alpha : isInCheck ? ply - KillerEvaluation : 0;
+            return inQSearch ? alpha : isInCheck ? ply - KillerEvaluation : 0;
         
         var scores = new int[legalMoves.Length];
         var moveIndex = 0;
@@ -152,20 +142,50 @@ public class MyBot : IChessBot
         {
             scores[moveIndex++] = -(
                 move == _transpositionTable[_board.ZobristKey & 0x7FFFFF].Move ? KillerEvaluation
-                : move.IsCapture ? 100_000_000 * _mvvLva[(int) move.CapturePieceType, (int) move.MovePieceType]
-                : move == _killers[ply] ? 80_000_000
+                : move.IsCapture ? 100_000_000 * ((int) move.CapturePieceType - (int) move.MovePieceType)
+                : move == _killerHeuristic[ply] ? 80_000_000
                 : _historyHeuristic[move.RawValue & 4095]);
         }
         
         Array.Sort(scores, legalMoves);
-        
+
+        var movesSearched = 0;
         foreach (var move in legalMoves)
         {
-            if (_timer.MillisecondsElapsedThisTurn > _timeLimit) return KillerEvaluation;
+            if (!inQSearch && _timer.MillisecondsElapsedThisTurn > _timeLimit) return 100_000_000;
             
             _board.MakeMove(move);
-            var score = -Search( depth - 1, ply + 1, -beta, -alpha);
+
+            int score;
+
+            if (movesSearched == 0)
+            {
+                score = -Search(depth - 1, ply + 1, -beta, -alpha);
+            }
+            else
+            {
+                if (movesSearched >= 4 && depth > 3 && !inQSearch && !isInCheck)
+                {
+                    score = -Search(depth - 3, ply + 1, -alpha - 1, -alpha);
+                }
+                else
+                {
+                    score = alpha + 1;
+                }
+
+                if (score > alpha)
+                {
+                    score = -Search(depth - 1, ply + 1, -alpha - 1, -alpha);
+
+                    if (score > alpha && score < beta)
+                        score = -Search(depth - 1, ply + 1, -beta, -alpha);
+                }
+            }
+
+
+            //score = -Search( depth - 1, ply + 1, -beta, -alpha);
             _board.UndoMove(move);
+            movesSearched++;
 
 #if DEBUG
             _nodesSearched++;
@@ -185,7 +205,7 @@ public class MyBot : IChessBot
                     {
                         if (!move.IsCapture)
                         {
-                            _killers[ply] = move;
+                            _killerHeuristic[ply] = move;
                             _historyHeuristic[move.RawValue & 4095] += depth;
                         }
                         
@@ -208,24 +228,41 @@ public class MyBot : IChessBot
         
         return bestScore;
     }
-    
+
     private int Evaluate()
     {
-        //Credits to toanth for the pesto and to tyrant for the evaluation function!
+        //credits to tyrant for the evaluation function!
         
-        int middleGame = 0, endgame = 0, gamePhase = 0, sideToMove = 2, piece, square;
-        for (; --sideToMove >= 0; middleGame = -middleGame, endgame = -endgame)
-        for (piece = -1; ++piece < 6;)
-        for (var mask = _board.GetPieceBitboard((PieceType)piece + 1, sideToMove > 0); mask != 0;)
+        int middlegame = 0, endgame = 0, gamephase = 0, sideToMove = 2, piece, square;
+        for (; --sideToMove >= 0; middlegame = -middlegame, endgame = -endgame)
+        for (piece = 6; --piece >= 0;)
+        for (ulong mask = _board.GetPieceBitboard((PieceType)piece + 1, sideToMove > 0); mask != 0;)
         {
-            
-            gamePhase += _pesto[768 + piece];
+            // Gamephase, middlegame -> endgame
+            // Multiply, then shift, then mask out 4 bits for value (0-16)
+            gamephase += 0x00042110 >> piece * 4 & 0x0F;
+
+            // Material and square evaluation
             square = BitboardHelper.ClearAndGetIndexOfLSB(ref mask) ^ 56 * sideToMove;
-            middleGame += _pesto[square] + (47 << piece) + _pesto[piece + 776];
-            endgame += _pesto[square + 384] + (47 << piece) + _pesto[piece + 782];
+            middlegame += UnpackedPestoTables[square * 16 + piece];
+            endgame += UnpackedPestoTables[square * 16 + piece + 6];
+
+            // Bishop pair bonus
+            if (piece == 2 && mask != 0)
+            {
+                middlegame += 23;
+                endgame += 62;
+            }
+
+            // Doubled pawns penalty (brought to my attention by Y3737)
+            if (piece == 0 && (0x101010101010101UL << (square & 7) & mask) > 0)
+            {
+                middlegame -= 15;
+                endgame -= 15;
+            }
         }
+
         // Tempo bonus to help with aspiration windows
-        return (middleGame * gamePhase + endgame * (24 - gamePhase)) / 24 * (_board.IsWhiteToMove ? 1 : -1) + gamePhase / 2;
-    }
-    
+            return (middlegame * gamephase + endgame * (24 - gamephase)) / (_board.IsWhiteToMove ? 24 : -24) + 16;
+        }
 }
