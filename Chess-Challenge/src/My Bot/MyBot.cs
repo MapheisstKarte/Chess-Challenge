@@ -54,7 +54,7 @@ public class MyBot : IChessBot
         _board = board;
         _timer = timer;
         
-        _timeLimit = timer.MillisecondsRemaining / 30;
+        _timeLimit = timer.MillisecondsRemaining / 20;
         _bestMove = Move.NullMove;
         
         _historyHeuristic = new int[4096];
@@ -101,6 +101,7 @@ public class MyBot : IChessBot
         if (isInCheck)
             depth++;
         
+        
         var inQSearch = depth <= 0;
 
         if (inQSearch)
@@ -110,15 +111,10 @@ public class MyBot : IChessBot
             if (alpha < eval) alpha = eval;
         }
         
-        var bestScore = -KillerEvaluation;;
+        var bestScore = -KillerEvaluation;
 
         if (!inQSearch)
         {
-            //reverse futility pruning
-            var eval = Evaluate() - 100;
-            if (!isInCheck && eval >= beta)
-                return eval;
-            
             //null move pruning
             if (depth >= 3 && !isInCheck)
             {
@@ -129,10 +125,14 @@ public class MyBot : IChessBot
                 if (score >= beta) return score;
             }
             
+            //reverse futility pruning
+            var eval = Evaluate() - 100;
+            if (!isInCheck && eval >= beta)
+                return eval;
         }
 
         var legalMoves = _board.GetLegalMoves(inQSearch);
-        
+
         if (!legalMoves.Any())
             return inQSearch ? alpha : isInCheck ? ply - KillerEvaluation : 0;
         
@@ -164,9 +164,9 @@ public class MyBot : IChessBot
             }
             else
             {
-                if (movesSearched >= 4 && depth > 3 && !inQSearch && !isInCheck)
+                if (movesSearched >= 3 && depth > 4 && !inQSearch && !isInCheck)
                 {
-                    score = -Search(depth - 3, ply + 1, -alpha - 1, -alpha);
+                    score = -Search(depth - 4, ply + 1, -alpha - 1, -alpha);
                 }
                 else
                 {
@@ -181,9 +181,7 @@ public class MyBot : IChessBot
                         score = -Search(depth - 1, ply + 1, -beta, -alpha);
                 }
             }
-
-
-            //score = -Search( depth - 1, ply + 1, -beta, -alpha);
+            
             _board.UndoMove(move);
             movesSearched++;
 
@@ -199,7 +197,10 @@ public class MyBot : IChessBot
                 {
                     alpha = score;
 
-                    if (ply == 0) _bestMove = move;
+                    if (ply == 0)
+                    {
+                        _bestMove = move;
+                    }
                     
                     if (score >= beta)
                     {

@@ -165,9 +165,9 @@ public class EvilBot : IChessBot
             }
             else
             {
-                if (movesSearched >= 4 && depth > 3 && !isQSearch && !isInCheck)
+                if (movesSearched >= 3 && depth > 4 && !isQSearch && !isInCheck)
                 {
-                    score = -Search(depth - 3, ply + 1, -alpha - 1, -alpha);
+                    score = -Search(depth - 4, ply + 1, -alpha - 1, -alpha);
                 }
                 else
                 {
